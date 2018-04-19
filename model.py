@@ -5,8 +5,8 @@ import json
 
 from tensorflow.python.framework import dtypes
 from tensorflow.python.ops import variable_scope
-from tensorflow.models.rnn import seq2seq, rnn, rnn_cell
-
+from tensorflow.contrib.rnn import static_rnn, LSTMCell, MultiRNNCell
+from tensorflow.contrib.legacy_seq2seq import rnn_decoder
 DEFAULT_LEARNING_RATE = 0.01
 
 from data import decode_output_sequences
@@ -40,14 +40,14 @@ class Seq2SeqGraph():
             return tf.random_uniform_initializer(-weight_amplitude, weight_amplitude)
 
         if num_layers > 1:
-            cells = [rnn_cell.LSTMCell(hidden_units, use_peepholes=peep, input_size=num_input_symbols,
-                                       initializer=random_uniform())]
-            cells += [rnn_cell.LSTMCell(hidden_units, use_peepholes=peep, input_size=hidden_units,
-                                        initializer=random_uniform()) for _ in range(num_layers - 1)]
-            self.cell = rnn_cell.MultiRNNCell(cells)
+            cells = [LSTMCell(hidden_units, use_peepholes=peep,
+                              initializer=random_uniform())]
+            cells += [LSTMCell(hidden_units, use_peepholes=peep,
+                               initializer=random_uniform()) for _ in range(num_layers - 1)]
+            self.cell = MultiRNNCell(cells)
         else:
-            self.cell = rnn_cell.LSTMCell(hidden_units, use_peepholes=peep,
-                                          initializer=random_uniform())
+            self.cell = LSTMCell(hidden_units, use_peepholes=peep,
+                                 initializer=random_uniform())
 
         self.w_softmax = tf.get_variable('w_softmax', shape=(hidden_units, num_output_symbols),
                                          initializer=random_uniform())
@@ -56,7 +56,7 @@ class Seq2SeqGraph():
 
         # decoder_outputs is a list of tensors with output_sequence_len: [(batch_size x hidden_units)]
         decoder_outputs, _ = self._init_seq2seq(self.encoder_inputs, self.decoder_inputs, self.cell,
-                                                feed_previous=not is_training)
+                                                not is_training)
 
         output_logits = [tf.matmul(decoder_output, self.w_softmax) + self.b_softmax
                          for decoder_output in decoder_outputs]
@@ -65,7 +65,7 @@ class Seq2SeqGraph():
         # If this is a training model create the training operation and loss function
         if is_training:
             self.targets = self.decoder_inputs[1:]
-            losses = [tf.nn.softmax_cross_entropy_with_logits(logit, target)
+            losses = [tf.nn.softmax_cross_entropy_with_logits(logits=logit, labels=target)
                       for logit, target in zip(output_logits, self.targets)]
 
             loss = tf.reduce_sum(tf.add_n(losses))
@@ -87,8 +87,8 @@ class Seq2SeqGraph():
         loop_function = inference_loop_function if feed_previous else None
 
         with variable_scope.variable_scope('seq2seq'):
-            _, final_enc_state = rnn.rnn(cell, encoder_inputs, dtype=dtypes.float32)
-            return seq2seq.rnn_decoder(decoder_inputs, final_enc_state, cell, loop_function=loop_function)
+            _, final_enc_state = static_rnn(cell, encoder_inputs, dtype=dtypes.float32)
+            return rnn_decoder(decoder_inputs, final_enc_state, cell, loop_function=loop_function)
 
 
 class Seq2SeqModel:

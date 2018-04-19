@@ -1,6 +1,6 @@
 # Learning to execute Python in Tensorflow
 
-Reimplementation of the paper [Learning to execute](https://arxiv.org/abs/1410.4615) in Tensorflow (0.7.0 and 0.8.0).
+Reimplementation of the paper [Learning to execute](https://arxiv.org/abs/1410.4615) in Tensorflow (>=1.4).
 
 Original implementation in Torch:
 https://github.com/wojciechz/learning_to_execute
